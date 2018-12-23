@@ -11,7 +11,7 @@ public class NewtonFractal {
     private static Complex calculate(int[] coef, Complex val){
         Complex toRet = new Complex(0,0);
         for (int i = 0; i < coef.length; i++){
-            toRet = toRet.add(val.pow(coef.length-i).mult(coef[i]));
+            toRet = toRet.add(val.pow(coef.length-i-1).mult(coef[i]));
         }
         return toRet;
     }
@@ -28,23 +28,29 @@ public class NewtonFractal {
             System.exit(0);
         }
         int[] coef = new int[order];
-        int[] deri = new int[order-1];
+        int[] deri = new int[order];
 
         deri[0] = 0;
+        System.out.println(0);
         for (int i = 0; i < order; i++){
             coef[i] = Integer.parseInt(raw_coefficients[i]);
             if (i < order-1){
-                deri[i] = coef[i] * (order-i);
+                deri[i+1] = coef[i] * (order-i-1);
             }
         }
 
-        double rangeXLeft = -1, rangeXRight = 1, rangeYLow = -1, rangeYHigh = 1, gridsize = 0.0005, alpha = 1, threshold = 0.0001;
+        double rangeXLeft = -1, rangeXRight = 1, rangeYLow = -1, rangeYHigh = 1, gridsize = 0.001, alpha = 1, threshold = 0.000001;
         int maxite = 150;
 
-        ArrayList<ArrayList<Integer>> grid = new ArrayList<>();
-        int min = maxite, max = 0;
+        int index = 0;
+        ArrayList<ArrayList<double[]>> grid = new ArrayList<>();
+        double[] min = new double[3], max = new double[3];
+        for (int i = 0; i < 3; i++){
+            min[i] = maxite;
+            max[i] = 0;
+        }
         for (double i = rangeXLeft; i < rangeXRight; i += gridsize) {
-            ArrayList<Integer> cur = new ArrayList<>();
+            ArrayList<double[]> cur = new ArrayList<>();
             for (double j = rangeYLow; j < rangeYHigh; j += gridsize) {
                 Complex toCalc = new Complex(i, j);
                 int ite = 0;
@@ -52,42 +58,60 @@ public class NewtonFractal {
                     toCalc = toCalc.minus(calculate(coef, toCalc).divideBy(calculate(deri, toCalc)).mult(alpha));
                     ite += 1;
                 }
-                //System.out.print(ite + " ");
-                cur.add(ite);
-                if (ite > max) {
-                    max = ite;
+                double[] toAdd = {ite, Math.abs(toCalc.real), Math.abs(toCalc.imag)};
+                cur.add(toAdd);
+                if (ite > max[0]) {
+                    max[0] = ite;
                 }
-                if (ite < min) {
-                    min = ite;
+                if (ite < min[0]) {
+                    min[0] = ite;
                 }
+
+                if (ite < maxite){
+                    double angle = Math.atan2(toAdd[2], toAdd[1]);
+                    if (angle > max[1]){
+                        max[1] = angle;
+                    }
+                    if (angle < min[1]){
+                        min[1] = angle;
+                    }
+
+                    double measure = Math.sqrt(toAdd[2]*toAdd[2] + toAdd[1]*toAdd[1]);
+                    if (measure > max[2] && measure != Double.POSITIVE_INFINITY){
+                        max[2] = measure;
+                    }
+                    if (measure < min[2]){
+                        min[2] = measure;
+                    }
+                }
+                //System.out.print(" " + ite);
             }
             grid.add(cur);
-
             //System.out.println();
+            System.out.print("\r" + index++);
+            System.out.flush();
         }
+
+        System.out.println("\n" + max[2] + " " + max[1] + " " + min[2] + " " + min[1]);
 
         int XSize = (int)Math.ceil((rangeXRight - rangeXLeft) / gridsize);
         int YSize = (int)Math.ceil((rangeYHigh - rangeYLow) / gridsize);
 
-        int[] bucket = new int[max - min + 1];
+        double[] normal = {max[0]-min[0], max[1]-min[1], max[2]-min[2]};
+        System.out.println(normal[0] + " " + normal[1] + " " + normal[2]);
 
         BufferedImage bImage = new BufferedImage(XSize, YSize, BufferedImage.TYPE_INT_RGB);
 
         for (int i = 0; i < XSize; i++){
             for (int j = 0; j < YSize; j++){
-                int val = grid.get(i).get(j);
-                val = (val - min);
-                if (bucket[val] == 0){
-                    Random rand = new Random();
-                    int r = rand.nextInt(256);
-                    int g = rand.nextInt(256);
-                    int b = rand.nextInt(256);
-                    int color = new Color(r, g, b).getRGB();
-                    bucket[val] = color;
-                }
-
-                //System.out.println(val * step);
-                bImage.setRGB(i, j, bucket[val]);
+                double[] curVal = grid.get(i).get(j);
+                double curMeasure = Math.sqrt(curVal[1]*curVal[1]+curVal[2]*curVal[2]);
+                double curAngle = Math.atan2(curVal[2], curVal[1]);
+                float lig = (float)(((max[0] - curVal[0]) / normal[0])*0.8 + 0.2);
+                float sat = (float)((max[2] - curMeasure) / normal[2]);
+                float hue = (float)(curAngle / (Math.PI/2));
+                //System.out.println(hue + " " + sat + " " + lig);
+                bImage.setRGB(i, j, Color.HSBtoRGB(hue, sat, lig));
             }
         }
 
